@@ -47,87 +47,90 @@ ambito_lavoro = st.multiselect("💼 In quale ambito ti piacerebbe lavorare?", [
 
 stile_lavoro = st.radio("🔍 Preferisci un lavoro più...", [
     "Pratico e manuale", "Analitico e teorico", "Creativo e artistico",
-    "Tecnologico e innovativo", "A contatto con le persone"
+    "Tecnologico e innovativo", "A contatto con le persone", "Non saprei/Altro"
 ])
 
 if st.button("🚀 Scopri i corsi consigliati"):
-    with st.spinner("Analizzando le tue risposte... ⏳"):
-        # Creazione del prompt per Gemini
-        prompt = f"""
-        Sei un esperto di orientamento universitario. In base alle preferenze seguenti, suggerisci 3 corsi di laurea (triennali o magistrali a ciclo unico e soprattutto intraprendibili con solo il diploma) adatti con una descrizione chiara e dettagliata:
-        - Materie preferite: {", ".join(materie)}
-        - Abilità personali: {", ".join(abilità)}
-        - Hobby e passioni: {", ".join(interessi)}
-        - Aree di studio preferite: {", ".join(aree_studio)}
-        - Ambito lavorativo desiderato: {", ".join(ambito_lavoro)}
-        - Stile di lavoro ideale: {stile_lavoro}
+    if not materie or not abilità or not interessi or not aree_studio or not ambito_lavoro:
+        st.warning("⚠️ Seleziona almeno un'opzione per ogni domanda prima di continuare!")
+    else:
+        with st.spinner("Analizzando le tue risposte... ⏳"):
+            # Creazione del prompt per Gemini
+            prompt = f"""
+            Sei un esperto di orientamento universitario. In base alle preferenze seguenti, suggerisci 3 corsi di laurea (triennali o magistrali a ciclo unico e soprattutto intraprendibili con solo il diploma) adatti con una descrizione chiara e dettagliata:
+            - Materie preferite: {", ".join(materie)}
+            - Abilità personali: {", ".join(abilità)}
+            - Hobby e passioni: {", ".join(interessi)}
+            - Aree di studio preferite: {", ".join(aree_studio)}
+            - Ambito lavorativo desiderato: {", ".join(ambito_lavoro)}
+            - Stile di lavoro ideale: {stile_lavoro}
 
-        Ogni corso suggerito deve includere:
-        - Nome del corso di laurea (+ Durata del corso)
-        - Modalità di accesso (es. Test TOLC, ecc...)
-        - Breve descrizione
-        - Esami principali da sostenere
-        - Sbocchi professionali principali (con stipendio medio annuo per ogni professione)
-        - Magistrali intraprendibili dopo (se il corso è triennale, altrimenti salta questo passaggio)
+            Ogni corso suggerito deve includere:
+            - Nome del corso di laurea (+ Durata del corso)
+            - Modalità di accesso (es. Test TOLC, ecc...)
+            - Breve descrizione
+            - Esami principali da sostenere
+            - Sbocchi professionali principali (con stipendio medio annuo per ogni professione)
+            - Magistrali intraprendibili dopo (se il corso è triennale, altrimenti salta questo passaggio)
 
-        Infine aggiungi altri 2 corsi di laurea da prendere in considerazione anche se non rispecchiano del tutto le preferenze espressse, scrivi solamente il nome e aggiungi una breve descrizione del corso, non aggiungere nessun altro dettaglio.
-        """
+            Infine aggiungi altri 2 corsi di laurea da prendere in considerazione anche se non rispecchiano del tutto le preferenze espressse, scrivi solamente il nome e aggiungi una breve descrizione del corso, non aggiungere nessun altro dettaglio.
+            """
 
-        # Chiamata all'IA di Google (Gemini)
-        model = genai.GenerativeModel("gemini-pro")
-        response = model.generate_content(prompt)
+            # Chiamata all'IA di Google (Gemini)
+            model = genai.GenerativeModel("gemini-pro")
+            response = model.generate_content(prompt)
 
-        # Mostra il risultato in modo formattato
-        st.subheader("📋 Corsi consigliati per te:")
-        st.markdown(response.text)
+            # Mostra il risultato in modo formattato
+            st.subheader("📋 Corsi consigliati per te:")
+            st.markdown(response.text)
 
-        # Funzione per creare il PDF
-        def create_pdf(response_text):
-            buffer = io.BytesIO()  # Crea un buffer in memoria
-            doc = SimpleDocTemplate(buffer, pagesize=letter)
-            styles = getSampleStyleSheet()
+            # Funzione per creare il PDF
+            def create_pdf(response_text):
+                buffer = io.BytesIO()  # Crea un buffer in memoria
+                doc = SimpleDocTemplate(buffer, pagesize=letter)
+                styles = getSampleStyleSheet()
 
-            # Stile personalizzato per i titoli e il testo
-            title_style = ParagraphStyle(
-                'TitleStyle',
-                parent=styles['Title'],
-                fontSize=16,
-                textColor=colors.darkblue,
-                spaceAfter=10
+                # Stile personalizzato per i titoli e il testo
+                title_style = ParagraphStyle(
+                    'TitleStyle',
+                    parent=styles['Title'],
+                    fontSize=16,
+                    textColor=colors.darkblue,
+                    spaceAfter=10
+                )
+
+                text_style = ParagraphStyle(
+                    'TextStyle',
+                    parent=styles['BodyText'],
+                    fontSize=12,
+                    spaceAfter=8
+                )
+
+                elements = []  # Lista degli elementi nel PDF
+
+                # Aggiungi il titolo
+                elements.append(Paragraph("Risultati dell'Orientamento Universitario di UniBuddy", title_style))
+                elements.append(Spacer(1, 12))  # Spazio tra titolo e contenuto
+
+                # Converti Markdown in HTML per rispettare i formati
+                formatted_text = re.sub(r"\*\*(.*?)\*\*", r"<b>\1</b>", response_text)  # **grassetto**
+                formatted_text = re.sub(r"\*(.*?)\*", r"- \1", formatted_text)
+                paragraphs = formatted_text.split("\n")
+
+                for paragraph in paragraphs:
+                    if paragraph.strip():
+                        elements.append(Paragraph(paragraph, text_style))
+
+                # Crea il PDF e lo salva nel buffer
+                doc.build(elements)
+                buffer.seek(0)
+                return buffer
+
+            # Bottone per scaricare il PDF
+            pdf_buffer = create_pdf(response.text)
+            st.download_button(
+                label="📥 Scarica il PDF con i tuoi risultati",
+                data=pdf_buffer,
+                file_name="orientamento_universitario.pdf",
+                mime="application/pdf"
             )
-
-            text_style = ParagraphStyle(
-                'TextStyle',
-                parent=styles['BodyText'],
-                fontSize=12,
-                spaceAfter=8
-            )
-
-            elements = []  # Lista degli elementi nel PDF
-
-            # Aggiungi il titolo
-            elements.append(Paragraph("Risultati dell'Orientamento Universitario di UniBuddy", title_style))
-            elements.append(Spacer(1, 12))  # Spazio tra titolo e contenuto
-
-            # Converti Markdown in HTML per rispettare i formati
-            formatted_text = re.sub(r"\*\*(.*?)\*\*", r"<b>\1</b>", response_text)  # **grassetto**
-            formatted_text = re.sub(r"\*(.*?)\*", r"- \1", formatted_text)
-            paragraphs = formatted_text.split("\n")
-
-            for paragraph in paragraphs:
-                if paragraph.strip():
-                    elements.append(Paragraph(paragraph, text_style))
-
-            # Crea il PDF e lo salva nel buffer
-            doc.build(elements)
-            buffer.seek(0)
-            return buffer
-
-        # Bottone per scaricare il PDF
-        pdf_buffer = create_pdf(response.text)
-        st.download_button(
-            label="📥 Scarica il PDF con i tuoi risultati",
-            data=pdf_buffer,
-            file_name="orientamento_universitario.pdf",
-            mime="application/pdf"
-        )
